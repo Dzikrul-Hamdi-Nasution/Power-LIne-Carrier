@@ -1,0 +1,174 @@
+#include <SPI.h>
+#include <UIPEthernet.h>
+
+#include "ZMPT101B.h"
+#include "ACS712.h"
+
+
+ZMPT101B voltageSensor(A4);
+ACS712 ACS_1(A0, 5.0, 1023, 185);
+ACS712 ACS_2(A1, 5.0, 1023, 185);
+ACS712 ACS_3(A2, 5.0, 1023, 185);
+ACS712 ACS_4(A3, 5.0, 1023, 185);
+
+
+
+
+int relay_1 = 4, relay_2 = 5, relay_3 = 6, relay_4 = 7, mode_sistem = 8;
+float suhu, daya_kwh;
+int sensorValue_sensor_tegangan = 0, tegangan_PLN;
+int mA_1, mA_2, mA_3, mA_4;
+
+
+String dataIn;
+String dt[10];
+int i, verifikasi;
+boolean parsing = false;
+
+int data_PLC;
+float arus_sensor;
+
+String relay_data_1, relay_data_2, relay_data_3, relay_data_4, kontrol_mode;
+
+
+void setup() {
+  Serial.begin(9600);
+  voltageSensor.calibrate();
+  ACS_1.autoMidPoint();
+  ACS_2.autoMidPoint();
+  ACS_3.autoMidPoint();
+  ACS_4.autoMidPoint();
+
+  pinMode(relay_1, OUTPUT);
+  pinMode(relay_2, OUTPUT);
+  pinMode(relay_3, OUTPUT);
+  pinMode(relay_4, OUTPUT);
+  pinMode(mode_sistem, INPUT_PULLUP);
+
+  digitalWrite(relay_1, HIGH);
+  digitalWrite(relay_2, HIGH);
+  digitalWrite(relay_3, HIGH);
+  digitalWrite(relay_4, HIGH);
+}
+
+void loop() {
+
+
+
+  if (digitalRead(mode_sistem) == LOW) {
+    cek_tombol();
+  } else {
+    tegangan();
+    arus();
+    kirim();
+  }
+}
+
+void kirim() {
+  Serial.print("*");
+  Serial.print(tegangan_PLN);
+  Serial.print(",");
+  Serial.print(mA_1);
+  Serial.print(",");
+  Serial.print(mA_2);
+  Serial.print(",");
+  Serial.print(mA_3);
+  Serial.print(",");
+  Serial.print(mA_4);
+  Serial.print(",");
+  Serial.println("#");
+
+  
+ // delay(2000);
+}
+
+void cek_tombol() {
+
+  if (Serial.available() > 0) {
+    data_PLC = Serial.parseInt();
+
+
+    if (data_PLC == 1) {
+      digitalWrite(relay_4, LOW);
+      Serial.println("Relay 4 Aktif");
+    }
+    if (data_PLC == 2) {
+      digitalWrite(relay_4, HIGH);
+    }
+
+    if (data_PLC == 3) {
+      digitalWrite(relay_3, LOW);
+      Serial.println("Relay 3 Aktif");
+    }
+    if (data_PLC == 4) {
+      digitalWrite(relay_3, HIGH);
+    }
+
+    if (data_PLC == 5) {
+      digitalWrite(relay_2, LOW);
+      Serial.println("Relay 2 Aktif");
+    }
+    if (data_PLC == 6) {
+      digitalWrite(relay_2, HIGH);
+    }
+
+    if (data_PLC == 7) {
+      digitalWrite(relay_1, LOW);
+      Serial.println("Relay 1 Aktif");
+    }
+    if (data_PLC == 8) {
+      digitalWrite(relay_1, HIGH);
+    }
+
+    //delay(100);
+  }
+}
+
+
+
+
+void parsingData() {
+  int j = 0;
+  //kirim data yang telah diterima sebelumnya
+
+  //inisialisasi variabel, (reset isi variabel)
+  dt[j] = "";
+  //proses parsing data
+  for (i = 1; i < dataIn.length(); i++) {
+    //pengecekan tiap karakter dengan karakter (#) dan (,)
+    if ((dataIn[i] == '#') || (dataIn[i] == ',')) {
+      //increment variabel j, digunakan untuk merubah index array penampung
+      j++;
+      dt[j] = "";  //inisialisasi variabel array dt[j]
+    } else {
+      //proses tampung data saat pengecekan karakter selesai.
+      dt[j] = dt[j] + dataIn[i];
+    }
+  }
+
+  relay_data_1 = dt[0];
+  relay_data_2 = dt[1];
+  relay_data_3 = dt[2];
+  relay_data_4 = dt[3];
+  kontrol_mode = dt[4];
+}
+
+
+
+
+void tegangan() {
+  float U = voltageSensor.getVoltageAC();
+  float regresi_tegangan = U * 10;
+  tegangan_PLN = regresi_tegangan - 30;
+  if (tegangan_PLN < 30) {
+    tegangan_PLN = 0;
+  }
+}
+
+void arus() {
+  mA_1 = ACS_1.mA_AC();
+  mA_2 = ACS_2.mA_AC();
+  mA_3 = ACS_3.mA_AC();
+  mA_4 = ACS_4.mA_AC();
+
+}
